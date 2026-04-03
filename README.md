@@ -1,6 +1,8 @@
-# Claude HUD (MiniMax Edition)
+# Claude HUD (Multi-Provider)
 
-基于 [jarrodwatts/claude-hud](https://github.com/jarrodwatts/claude-hud) 的 Claude Code 插件，在原版基础上增加了 **MiniMax Coding Plan 用量显示**功能。
+基于 [jarrodwatts/claude-hud](https://github.com/jarrodwatts/claude-hud) 的 Claude Code 插件，在原版基础上增加了**多平台 Coding Plan 用量显示**功能。
+
+**支持的平台**: MiniMax、Kimi、DeepSeek
 
 当使用 MiniMax 模型时，HUD 会实时显示当前周期的请求配额使用情况。
 
@@ -115,7 +117,7 @@ npm run build
 
 ```bash
 # 测试 MiniMax 用量模块
-node -e "import('./dist/minimax-usage.js').then(m => m.getMinimaxUsage().then(r => console.log(JSON.stringify(r, null, 2))))"
+node -e "import('./dist/provider-usage.js').then(m => m.getProviderUsage().then(r => console.log(JSON.stringify(r, null, 2))))"
 
 # 测试 HUD 输出
 echo '{"model":{"id":"MiniMax-M2.7"}}' | node dist/index.js

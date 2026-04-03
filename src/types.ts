@@ -1,6 +1,6 @@
 import type { HudConfig } from './config.js';
 import type { GitStatus } from './git.js';
-import type { MiniMaxUsage } from './minimax-usage.js';
+import type { ProviderUsage } from './provider-usage.js';
 
 export interface StdinData {
   transcript_path?: string;
@@ -95,7 +95,7 @@ export interface RenderContext {
   gitStatus: GitStatus | null;
   usageData: UsageData | null;
   memoryUsage: MemoryInfo | null;
-  minimaxUsage: MiniMaxUsage | null;
+  providerUsage: ProviderUsage[];
   config: HudConfig;
   extraLabel: string | null;
   claudeCodeVersion?: string;

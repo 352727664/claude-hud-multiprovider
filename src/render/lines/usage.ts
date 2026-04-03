@@ -1,9 +1,9 @@
 import type { RenderContext } from '../../types.js';
 import { isLimitReached } from '../../types.js';
 import { getProviderLabel } from '../../stdin.js';
-import { critical, label, getQuotaColor, quotaBar, RESET, warning } from '../colors.js';
+import { critical, label, getQuotaColor, quotaBar, RESET } from '../colors.js';
 import { getAdaptiveBarWidth } from '../../utils/terminal.js';
-import { isMinimaxModel } from '../../minimax-usage.js';
+import { detectProvider, type ProviderUsage } from '../../provider-usage.js';
 
 export function renderUsageLine(ctx: RenderContext): string | null {
   const display = ctx.config?.display;
@@ -13,12 +13,20 @@ export function renderUsageLine(ctx: RenderContext): string | null {
     return null;
   }
 
-  // Show MiniMax usage when using MiniMax model and we have data
+  // Check if using a known provider model
   const modelId = ctx.stdin.model?.id;
-  if (isMinimaxModel(modelId) && ctx.minimaxUsage) {
-    return renderMinimaxUsage(ctx);
+  const provider = detectProvider(modelId);
+
+  // If we have provider usage data, show it
+  if (provider && ctx.providerUsage && ctx.providerUsage.length > 0) {
+    // Find usage for the current provider
+    const currentProviderUsage = ctx.providerUsage.find(p => p.provider === provider);
+    if (currentProviderUsage) {
+      return renderProviderUsage(ctx, currentProviderUsage);
+    }
   }
 
+  // Fallback to Claude's own rate limits
   if (!ctx.usageData) {
     return null;
   }
@@ -86,32 +94,44 @@ export function renderUsageLine(ctx: RenderContext): string | null {
   return `${usageLabel} ${fiveHourPart}`;
 }
 
-function renderMinimaxUsage(ctx: RenderContext): string {
+function renderProviderUsage(ctx: RenderContext, usage: ProviderUsage): string {
   const colors = ctx.config?.colors;
-  const m = ctx.minimaxUsage!;
-
-  const usageLabel = label('MiniMax', colors);
-
-  // Calculate interval percentage
-  const intervalPercent = Math.round((m.intervalConsumed / m.intervalLimit) * 100);
-  const intervalColor = getQuotaColor(intervalPercent, colors);
-  const intervalReset = formatResetTime(m.intervalResetAt);
-
-  // Calculate weekly percentage
-  const weeklyPercent = Math.round((m.weeklyConsumed / m.weeklyLimit) * 100);
-  const weeklyColor = getQuotaColor(weeklyPercent, colors);
-  const weeklyReset = formatResetTime(m.weeklyResetAt);
-
-  // Format: MiniMax ████░░ 615/1500 (885 left) 5h | ███░░ 4404/15000 (10596 left) 7d
   const barWidth = getAdaptiveBarWidth();
+  const usageLabel = label(usage.providerLabel, colors);
 
-  const intervalBar = `${intervalColor}${quotaBar(intervalPercent, barWidth, colors)}${RESET}`;
-  const intervalText = `${intervalColor}${intervalPercent}%${RESET} (${m.intervalRemaining} left${intervalReset ? `, ${intervalReset}` : ''})`;
+  // MiniMax: 显示 5h 窗口 + 周
+  if (usage.provider === 'minimax' && usage.limit && usage.remaining !== undefined) {
+    const intervalPercent = Math.round((usage.consumed / usage.limit) * 100);
+    const intervalColor = getQuotaColor(intervalPercent, colors);
+    const intervalReset = formatResetTime(usage.resetAt ?? null);
 
-  const weeklyBar = `${weeklyColor}${quotaBar(weeklyPercent, barWidth, colors)}${RESET}`;
-  const weeklyText = `${weeklyColor}${weeklyPercent}%${RESET} (${m.weeklyRemaining} left${weeklyReset ? `, ${weeklyReset}` : ''})`;
+    const intervalBar = `${intervalColor}${quotaBar(intervalPercent, barWidth, colors)}${RESET}`;
+    const intervalText = `${intervalColor}${intervalPercent}%${RESET} (${usage.remaining} left${intervalReset ? `, ${intervalReset}` : ''})`;
 
-  return `${usageLabel} ${intervalBar} ${intervalText} | ${weeklyBar} ${weeklyText}`;
+    let result = `${usageLabel} ${intervalBar} ${intervalText}`;
+
+    // Weekly if available
+    if (usage.weeklyLimit && usage.weeklyRemaining !== undefined) {
+      const weeklyPercent = Math.round((usage.weeklyConsumed! / usage.weeklyLimit) * 100);
+      const weeklyColor = getQuotaColor(weeklyPercent, colors);
+      const weeklyReset = formatResetTime(usage.weeklyResetAt ?? null);
+
+      const weeklyBar = `${weeklyColor}${quotaBar(weeklyPercent, barWidth, colors)}${RESET}`;
+      const weeklyText = `${weeklyColor}${weeklyPercent}%${RESET} (${usage.weeklyRemaining} left${weeklyReset ? `, ${weeklyReset}` : ''})`;
+
+      result += ` | ${weeklyBar} ${weeklyText}`;
+    }
+
+    return result;
+  }
+
+  // Kimi / DeepSeek: 显示余额(元)
+  if ((usage.provider === 'kimi' || usage.provider === 'deepseek') && usage.remaining !== undefined) {
+    return `${usageLabel} 余额 ¥${usage.remaining.toFixed(2)}`;
+  }
+
+  // Fallback
+  return `${usageLabel} ${usage.consumed}`;
 }
 
 function formatUsagePercent(percent: number | null, colors?: RenderContext['config']['colors']): string {
@@ -123,7 +143,7 @@ function formatUsagePercent(percent: number | null, colors?: RenderContext['conf
 }
 
 function formatUsageWindowPart({
-  label,
+  label: labelText,
   percent,
   resetAt,
   colors,
@@ -146,12 +166,12 @@ function formatUsageWindowPart({
     const body = reset
       ? `${quotaBar(percent ?? 0, barWidth, colors)} ${usageDisplay} (resets in ${reset})`
       : `${quotaBar(percent ?? 0, barWidth, colors)} ${usageDisplay}`;
-    return forceLabel ? `${label}: ${body}` : body;
+    return forceLabel ? `${labelText}: ${body}` : body;
   }
 
   return reset
-    ? `${label}: ${usageDisplay} (resets in ${reset})`
-    : `${label}: ${usageDisplay}`;
+    ? `${labelText}: ${usageDisplay} (resets in ${reset})`
+    : `${labelText}: ${usageDisplay}`;
 }
 
 function formatResetTime(resetAt: Date | null): string {
