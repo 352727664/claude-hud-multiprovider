@@ -12,6 +12,19 @@ import type { RenderContext } from './types.js';
 import { fileURLToPath } from 'node:url';
 import { realpathSync } from 'node:fs';
 
+/**
+ * Returns true when the HUD is disabled via the CLAUDE_HUD_DISABLE env var.
+ * Supports: CLAUDE_HUD_DISABLE=1 / true / yes (disabled)
+ *           CLAUDE_HUD_DISABLE=0 / false / off / no / '' (enabled)
+ */
+export function isHudDisabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const value = env.CLAUDE_HUD_DISABLE?.trim().toLowerCase();
+  if (value === undefined || value === '') {
+    return false;
+  }
+  return value !== '0' && value !== 'false' && value !== 'off' && value !== 'no';
+}
+
 export type MainDeps = {
   readStdin: typeof readStdin;
   getUsageFromStdin: typeof getUsageFromStdin;
@@ -30,6 +43,11 @@ export type MainDeps = {
 };
 
 export async function main(overrides: Partial<MainDeps> = {}): Promise<void> {
+  if (isHudDisabled()) {
+    // Print nothing — skip all work for the ~300ms polling loop
+    return;
+  }
+
   const deps: MainDeps = {
     readStdin,
     getUsageFromStdin,
@@ -77,8 +95,9 @@ export async function main(overrides: Partial<MainDeps> = {}): Promise<void> {
       usageData = deps.getUsageFromStdin(stdin);
     }
 
-    // Provider usage - fetched for all configured providers (MiniMax, Kimi, Volcengine, etc.)
-    const providerUsage = await deps.getProviderUsage();
+    // Provider usage - fetched for all configured providers
+    const providerApiKeys = (config as unknown as { provider?: { apiKeys?: Record<string, string> } }).provider?.apiKeys;
+    const providerUsage = await deps.getProviderUsage(providerApiKeys);
 
     const extraCmd = deps.parseExtraCmdArg();
     const extraLabel = extraCmd ? await deps.runExtraCmd(extraCmd) : null;

@@ -59,6 +59,16 @@ export interface HudConfig {
     showAheadBehind: boolean;
     showFileStats: boolean;
   };
+  provider: {
+    /** 手动指定 provider 名称，优先级高于自动检测 */
+    name?: string;
+    /** 阈值：余额低于此值时显示警告色 */
+    balanceWarning: number;
+    /** 阈值：余额低于此值时显示危险色 */
+    balanceCritical: number;
+    /** API Keys 配置文件（可选，也可用环境变量） */
+    apiKeys?: Record<string, string>;
+  };
   display: {
     showModel: boolean;
     showProject: boolean;
@@ -95,6 +105,12 @@ export const DEFAULT_CONFIG: HudConfig = {
     showDirty: true,
     showAheadBehind: false,
     showFileStats: false,
+  },
+  provider: {
+    name: '',
+    balanceWarning: 10,
+    balanceCritical: 5,
+    apiKeys: {},
   },
   display: {
     showModel: true,
@@ -267,6 +283,15 @@ export function mergeConfig(userConfig: Partial<HudConfig>): HudConfig {
       : DEFAULT_CONFIG.gitStatus.showFileStats,
   };
 
+  const provider = {
+    name: typeof migrated.provider?.name === 'string' && migrated.provider.name.length > 0
+      ? migrated.provider.name
+      : DEFAULT_CONFIG.provider.name,
+    balanceWarning: validateThreshold(migrated.provider?.balanceWarning, 100),
+    balanceCritical: validateThreshold(migrated.provider?.balanceCritical, 100),
+    apiKeys: migrated.provider?.apiKeys ?? DEFAULT_CONFIG.provider.apiKeys,
+  };
+
   const display = {
     showModel: typeof migrated.display?.showModel === 'boolean'
       ? migrated.display.showModel
@@ -363,7 +388,7 @@ export function mergeConfig(userConfig: Partial<HudConfig>): HudConfig {
       : DEFAULT_CONFIG.colors.custom,
   };
 
-  return { lineLayout, showSeparators, pathLevels, elementOrder, gitStatus, display, colors };
+  return { lineLayout, showSeparators, pathLevels, elementOrder, gitStatus, provider, display, colors };
 }
 
 export async function loadConfig(): Promise<HudConfig> {

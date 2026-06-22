@@ -1,7 +1,7 @@
 import type { RenderContext } from '../../types.js';
 import { isLimitReached } from '../../types.js';
 import { getProviderLabel } from '../../stdin.js';
-import { critical, label, getQuotaColor, quotaBar, RESET } from '../colors.js';
+import { critical, label, resolveAnsi, getQuotaColor, quotaBar, RESET, RED, YELLOW } from '../colors.js';
 import { getAdaptiveBarWidth } from '../../utils/terminal.js';
 import { detectProvider, type ProviderUsage } from '../../provider-usage.js';
 
@@ -13,9 +13,10 @@ export function renderUsageLine(ctx: RenderContext): string | null {
     return null;
   }
 
-  // Check if using a known provider model
+  // Check if using a known provider model (manual override > auto detect)
   const modelId = ctx.stdin.model?.id;
-  const provider = detectProvider(modelId);
+  const manualProvider = (ctx.config as unknown as { provider?: { name?: string } }).provider?.name;
+  const provider = detectProvider(modelId, manualProvider);
 
   // If we have provider usage data, show it
   if (provider && ctx.providerUsage && ctx.providerUsage.length > 0) {
@@ -98,6 +99,15 @@ function renderProviderUsage(ctx: RenderContext, usage: ProviderUsage): string {
   const colors = ctx.config?.colors;
   const barWidth = getAdaptiveBarWidth();
   const usageLabel = label(usage.providerLabel, colors);
+  const prov = (ctx.config as unknown as { provider?: { balanceWarning?: number; balanceCritical?: number } }).provider;
+  const warningThreshold = prov?.balanceWarning ?? 10;
+  const criticalThreshold = prov?.balanceCritical ?? 5;
+
+  function getBalanceColor(balance: number): string {
+    if (balance <= criticalThreshold) return resolveAnsi(colors?.critical, RED);
+    if (balance <= warningThreshold) return resolveAnsi(colors?.warning, YELLOW);
+    return '';
+  }
 
   // MiniMax: 显示 5h 窗口 + 周
   if (usage.provider === 'minimax' && usage.limit && usage.remaining !== undefined) {
@@ -125,9 +135,32 @@ function renderProviderUsage(ctx: RenderContext, usage: ProviderUsage): string {
     return result;
   }
 
-  // Kimi / DeepSeek: 显示余额(元)
-  if ((usage.provider === 'kimi' || usage.provider === 'deepseek') && usage.remaining !== undefined) {
-    return `${usageLabel} 余额 ¥${usage.remaining.toFixed(2)}`;
+  // Kimi: 显示余额(元)
+  if (usage.provider === 'kimi' && usage.remaining !== undefined) {
+    const remaining = usage.remaining;
+    const balanceColor = getBalanceColor(remaining);
+    const balanceText = balanceColor
+      ? `${balanceColor}¥${remaining.toFixed(2)}${RESET}`
+      : `¥${remaining.toFixed(2)}`;
+    return `${usageLabel} 余额 ${balanceText}`;
+  }
+
+  // DeepSeek: 显示总余额 + 付费/赠送拆分
+  if (usage.provider === 'deepseek' && usage.remaining !== undefined) {
+    const remaining = usage.remaining;
+    const balanceColor = getBalanceColor(remaining);
+    const balanceText = balanceColor
+      ? `${balanceColor}¥${remaining.toFixed(2)}${RESET}`
+      : `¥${remaining.toFixed(2)}`;
+
+    // 如果有付费/赠送数据，显示明细
+    if (usage.paid !== undefined && usage.gift !== undefined) {
+      const paidText = `¥${usage.paid.toFixed(2)}`;
+      const giftText = `¥${usage.gift.toFixed(2)}`;
+      return `${usageLabel} ${balanceText} (充${paidText} 赠${giftText})`;
+    }
+
+    return `${usageLabel} 余额 ${balanceText}`;
   }
 
   // Fallback
