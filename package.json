@@ -1,7 +1,7 @@
 {
   "name": "claude-hud",
-  "version": "0.0.11",
-  "description": "Real-time statusline HUD for Claude Code",
+  "version": "0.1.0",
+  "description": "Claude Code HUD with Multi-Provider support - MiniMax, Kimi, DeepSeek usage display",
   "type": "module",
   "main": "dist/index.js",
   "files": [

@@ -1,20 +1,20 @@
 {
-  "name": "claude-hud",
+  "name": "claude-hud-multiprovider",
   "owner": {
-    "name": "Jarrod Watts",
-    "email": "jarrodwattsyt@gmail.com"
+    "name": "352727664",
+    "url": "https://github.com/352727664"
   },
   "metadata": {
-    "description": "Real-time statusline HUD for Claude Code - context health, tool activity, agent tracking, and todo progress",
-    "version": "0.0.11"
+    "description": "Claude Code HUD with Multi-Provider support - MiniMax, Kimi, DeepSeek usage display. CLAUDE_HUD_DISABLE, balance warnings, network error resilience.",
+    "version": "0.1.0"
   },
   "plugins": [
     {
-      "name": "claude-hud",
+      "name": "claude-hud-multiprovider",
       "source": "./",
-      "description": "Real-time statusline showing context usage, active tools, running agents, and todo progress. Always visible below your input, zero config required.",
+      "description": "Claude Code HUD with Multi-Provider support - MiniMax, Kimi, DeepSeek usage display. Real-time context health, tool/agent/todo tracking, with balance warnings, CLAUDE_HUD_DISABLE, and network error resilience.",
       "category": "monitoring",
-      "tags": ["hud", "statusline", "monitoring", "context", "tools", "agents", "todos"]
+      "tags": ["hud", "statusline", "monitoring", "context", "tools", "agents", "todos", "multiprovider"]
     }
   ]
 }
